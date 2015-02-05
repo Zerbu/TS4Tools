@@ -24,31 +24,6 @@ import (
 	"fmt"
 )
 
-const (
-	dtBool = iota
-	dtChar8
-	dtInt8
-	dtUInt8
-	dtInt16
-	dtUInt16
-	dtInt32
-	dtUInt32
-	dtInt64
-	dtUInt64
-	dtFloat
-	dtString8
-	dtHashedString8
-	dtObject
-	dtVector
-	dtFloat2
-	dtFloat3
-	dtFloat4
-	dtTableSetReference
-	dtResourceKey
-	dtLocKey
-	dtUndefined
-)
-
 func readData(r *bytes.Reader, schema *schema) map[string]interface{} {
 	data := make(map[string]interface{})
 	start := locate(r)

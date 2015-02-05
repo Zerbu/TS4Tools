@@ -82,21 +82,17 @@ func readSimdata(r *bytes.Reader) *Simdata {
 	read(r, &h.SchemaCount)
 
 	seek(r, schemaOffset)
-	schemaMap := make(map[int64]*schema)
+	schemas := make(map[int64]*schema)
 	for i := 0; i < int(h.SchemaCount); i++ {
 		offset := locate(r)
-		schemaMap[offset] = readSchema(r)
+		schemas[offset] = readSchema(r)
 	}
 
 	seek(r, tableInfoOffset)
-	tables := make([]*table, h.TableInfoCount)
+	tables := make(map[int64]*table)
 	for i := range tables {
-		tables[i] = readTable(r, schemaMap)
-	}
-
-	schemas := make([]*schema, 0)
-	for _, schema := range schemaMap {
-		schemas = append(schemas, schema)
+		offset := locate(r)
+		tables[offset] = readTable(r, schemas)
 	}
 
 	return &Simdata{h, tables, schemas}
@@ -150,19 +146,7 @@ func readTable(r *bytes.Reader, schemas map[int64]*schema) *table {
 	rowOffset := absolute(r, info.RowOffset)
 	read(r, &info.RowCount)
 
-	if info.SchemaOffset != null {
-		if info.RowCount != 1 {
-			fmt.Printf("multi-row schema data not implemented\n")
-			return &table{name, info, schemas[schemaOffset], nil}
-		}
-
-		curr := locate(r)
-		seek(r, rowOffset)
-		data := readData(r, schemas[schemaOffset])
-		seek(r, curr)
-
-		return &table{name, info, schemas[schemaOffset], data}
-	}
+	// TODO: read data
 
 	return &table{name, info, schemas[schemaOffset], nil}
 }

@@ -32,8 +32,8 @@ var (
 
 type Simdata struct {
 	header  *header
-	tables  []*table
-	schemas []*schema
+	tables  map[int64]*table
+	schemas map[int64]*schema
 }
 
 type table struct {
