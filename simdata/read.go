@@ -22,7 +22,6 @@ package simdata
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 )
 
 const (
@@ -90,7 +89,7 @@ func readSimdata(r *bytes.Reader) *Simdata {
 
 	seek(r, tableInfoOffset)
 	tables := make(map[int64]*table)
-	for i := range tables {
+	for i := 0; i < int(h.TableInfoCount); i++ {
 		offset := locate(r)
 		tables[offset] = readTable(r, schemas)
 	}
@@ -146,9 +145,16 @@ func readTable(r *bytes.Reader, schemas map[int64]*schema) *table {
 	rowOffset := absolute(r, info.RowOffset)
 	read(r, &info.RowCount)
 
-	// TODO: read data
+	curr := locate(r)
+	seek(r, rowOffset)
+	data := make([]interface{}, int(info.RowCount))
+	for i := range data {
+		row := readData(r, info, schemas[schemaOffset])
+		data[i] = row
+	}
+	seek(r, curr)
 
-	return &table{name, info, schemas[schemaOffset], nil}
+	return &table{name, info, schemas[schemaOffset], data}
 }
 
 func readName(r *bytes.Reader) (name, string) {

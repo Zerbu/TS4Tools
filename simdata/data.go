@@ -24,56 +24,34 @@ import (
 	"fmt"
 )
 
-func readData(r *bytes.Reader, schema *schema) map[string]interface{} {
+func readData(r *bytes.Reader, info *tableInfo, schema *schema) interface{} {
+	switch info.DataType {
+	case dtObject:
+		if schema == nil {
+			panic(fmt.Errorf("table schema not found"))
+		}
+		return readSchemaData(r, schema)
+	default:
+		panic(fmt.Errorf("table data type not implemented (%v)", info.DataType))
+	}
+}
+
+func readSchemaData(r *bytes.Reader, schema *schema) map[string]interface{} {
 	data := make(map[string]interface{})
 	start := locate(r)
 
 	for _, column := range schema.columns {
 		seek(r, start+int64(column.column.Offset))
 
-		switch column.column.DataType {
-		case dtInt64:
-			var num int64
-			read(r, &num)
-			data[column.name] = num
-
-		case dtFloat:
-			var num float32
-			read(r, &num)
-			data[column.name] = num
-
-		case dtObject:
-			fmt.Printf("type 'Object' not implemented\n")
-
-		case dtVector:
-			var offset, count uint32
-			read(r, &offset)
-			off := absolute(r, int32(offset))
-			read(r, &count)
-
-			if int32(offset) == null {
-				continue
-			}
-
-			seek(r, off)
-			vector := make([]uint64, count)
-			for i := range vector {
-				var entry uint64
-				read(r, &entry)
-				vector[i] = entry
-			}
-			data[column.name] = vector
-
-		case dtTableSetReference:
-			fmt.Printf("type 'TableSetReference' not implemented\n")
-
-		case dtResourceKey:
-			fmt.Printf("type 'ResourceKey' not implemented\n")
-
-		default:
-			panic(fmt.Errorf("data type '%v' not implemented", column.column.DataType))
-		}
+		data[column.name] = readValue(r, int(column.column.DataType))
 	}
 
 	return data
+}
+
+func readValue(r *bytes.Reader, dataType int) interface{} {
+	switch dataType {
+	default:
+		panic(fmt.Errorf("data type '%v' not implemented"))
+	}
 }

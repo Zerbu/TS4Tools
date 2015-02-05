@@ -106,7 +106,7 @@ func (s *session) fetch(name string) interface{} {
 
 func (s *session) fetchAttribute(variable interface{}, attributes []string) interface{} {
 	var attr interface{}
-	var err error
+	var ok bool
 	switch v := variable.(type) {
 	case *dbpf.Resource:
 		switch attributes[0] {
@@ -116,9 +116,9 @@ func (s *session) fetchAttribute(variable interface{}, attributes []string) inte
 			s.panic("type resource does not have the attribute '%v'", attributes[0])
 		}
 	case *simdata.Simdata:
-		attr, err = v.GetVariable(attributes[0])
-		if err != nil {
-			return nil
+		attr, ok = v.GetValue(attributes[0])
+		if !ok {
+			s.panic("could not find attribute '%v' in simdata", attributes[0])
 		}
 	default:
 		s.panic("variable type does not have attributes")

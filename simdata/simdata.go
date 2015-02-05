@@ -21,7 +21,6 @@ package simdata
 
 import (
 	"bytes"
-	"fmt"
 )
 
 var (
@@ -40,7 +39,7 @@ type table struct {
 	name   string
 	info   *tableInfo
 	schema *schema
-	data   map[string]interface{}
+	data   []interface{}
 }
 
 type schema struct {
@@ -67,10 +66,19 @@ func Read(b []byte) (d *Simdata, err error) {
 	return
 }
 
-func (d *Simdata) GetVariable(name string) (interface{}, error) {
-	variable, ok := d.tables[0].data[name]
-	if !ok {
-		return nil, fmt.Errorf("could not find value")
+func (s *Simdata) GetValue(name string) (interface{}, bool) {
+	for _, table := range s.tables {
+		if table.name != "" {
+			for _, row := range table.data {
+				data, ok := row.(map[string]interface{})
+				if ok {
+					value, ok := data[name]
+					if ok {
+						return value, true
+					}
+				}
+			}
+		}
 	}
-	return variable, nil
+	return nil, false
 }
