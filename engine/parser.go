@@ -58,7 +58,7 @@ func (p *parser) trim() {
 func (p *parser) findCharOrEnd(c uint8) int {
 	for i := p.curr; i < len(p.bytes); i++ {
 		switch p.bytes[i] {
-		case c, '\n':
+		case c, '\r', '\n':
 			return i
 		}
 	}
@@ -177,6 +177,10 @@ func (p *parser) ensure(word string) {
 func (p *parser) end() {
 	if p.curr >= len(p.bytes) {
 		return
+	}
+	if p.bytes[p.curr] == '\r' {
+		p.curr++
+		p.char++
 	}
 	if p.bytes[p.curr] != '\n' {
 		p.panic("expected new line")
