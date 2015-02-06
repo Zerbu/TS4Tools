@@ -206,6 +206,11 @@ func parseExpression(p *parser) expression {
 		return func(s *session) interface{} {
 			return action
 		}
+	case '<':
+		num := p.number()
+		return func(s *session) interface{} {
+			return num
+		}
 	default:
 		name := p.name()
 		return func(s *session) interface{} {
@@ -221,38 +226,73 @@ func parseConstruction(p *parser) construction {
 		p.end()
 		return nil
 
+	case "key":
+		typer := parseExpression(p)
+		grouper := parseExpression(p)
+		instancer := parseExpression(p)
+		p.end()
+		return func(s *session) interface{} {
+			return keys.Key{toHash32(p, typer(s)), toHash24(p, grouper(s)), toHash64(p, instancer(s))}
+		}
+
 	case "group":
 		hasher := parseExpression(p)
 		p.end()
 		return func(s *session) interface{} {
-			switch h := hasher(s).(type) {
-			case uint32:
-				return &keys.Filter{nil, []uint32{h}, nil}
-			case string:
-				return &keys.Filter{nil, []uint32{hash.Fnv24(h)}, nil}
-			default:
-				p.panic("can not construct group hash of given input")
-				return nil
-			}
+			return &keys.Filter{nil, []uint32{toHash24(p, hasher(s))}, nil}
 		}
 
 	case "instance":
 		hasher := parseExpression(p)
 		p.end()
 		return func(s *session) interface{} {
-			switch h := hasher(s).(type) {
-			case uint64:
-				return &keys.Filter{nil, nil, []uint64{h}}
-			case string:
-				return &keys.Filter{nil, nil, []uint64{hash.Fnv64(h), hash.Fnv64HighBit(h)}}
-			default:
-				p.panic("can not construct instance hash of given input")
-				return nil
-			}
+			return &keys.Filter{nil, nil, []uint64{toHash64(p, hasher(s))}}
 		}
 
 	default:
 		p.panic("construction '%v' not recognized", word)
 		return nil
+	}
+}
+
+func toHash24(p *parser, value interface{}) uint32 {
+	switch v := value.(type) {
+	case uint32:
+		return v
+	case int:
+		return uint32(v)
+	case string:
+		return hash.Fnv24(v)
+	default:
+		p.panic("could not convert value to hash (24)")
+		return 0
+	}
+}
+
+func toHash32(p *parser, value interface{}) uint32 {
+	switch v := value.(type) {
+	case uint32:
+		return v
+	case int:
+		return uint32(v)
+	case string:
+		return hash.Fnv32(v)
+	default:
+		p.panic("could not convert value to hash (32)")
+		return 0
+	}
+}
+
+func toHash64(p *parser, value interface{}) uint64 {
+	switch v := value.(type) {
+	case uint64:
+		return v
+	case int:
+		return uint64(v)
+	case string:
+		return hash.Fnv64(v)
+	default:
+		p.panic("could not convert value to hash (64)")
+		return 0
 	}
 }

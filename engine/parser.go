@@ -147,6 +147,26 @@ func (p *parser) string() string {
 	return string(bytes)
 }
 
+func (p *parser) number() int {
+	p.curr++
+	p.char++
+
+	n := p.findCharOrEnd('>')
+	bytes := p.bytes[p.curr:n]
+
+	p.curr = n + 1
+	p.char += len(bytes) + 1
+	p.trim()
+
+	var num int
+	_, err := fmt.Sscan(string(bytes), &num)
+	if err != nil {
+		p.panic(err.Error())
+	}
+
+	return num
+}
+
 func (p *parser) group(start, end uint8) *parser {
 	p.curr++
 	p.char++

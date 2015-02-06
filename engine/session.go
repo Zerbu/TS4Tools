@@ -108,6 +108,17 @@ func (s *session) fetchAttribute(variable interface{}, attributes []string) inte
 	var attr interface{}
 	var ok bool
 	switch v := variable.(type) {
+	case keys.Key:
+		switch attributes[0] {
+		case "type":
+			attr = v.Type
+		case "group":
+			attr = v.Group
+		case "instance":
+			attr = v.Instance
+		default:
+			s.panic("type resource does not have the attribute '%v'", attributes[0])
+		}
 	case *dbpf.Resource:
 		switch attributes[0] {
 		case "key":
