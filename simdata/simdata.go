@@ -39,6 +39,7 @@ type table struct {
 	name   string
 	info   *tableInfo
 	schema *schema
+	offset int64
 	data   []interface{}
 }
 

@@ -94,6 +94,10 @@ func readSimdata(r *bytes.Reader) *Simdata {
 		tables[offset] = readTable(r, schemas)
 	}
 
+	for _, table := range tables {
+		readTableData(r, table, tables)
+	}
+
 	return &Simdata{h, tables, schemas}
 }
 
@@ -145,16 +149,16 @@ func readTable(r *bytes.Reader, schemas map[int64]*schema) *table {
 	rowOffset := absolute(r, info.RowOffset)
 	read(r, &info.RowCount)
 
-	curr := locate(r)
-	seek(r, rowOffset)
-	data := make([]interface{}, int(info.RowCount))
-	for i := range data {
-		row := readData(r, info, schemas[schemaOffset])
-		data[i] = row
-	}
-	seek(r, curr)
+	return &table{name, info, schemas[schemaOffset], rowOffset, nil}
+}
 
-	return &table{name, info, schemas[schemaOffset], data}
+func readTableData(r *bytes.Reader, table *table, tables map[int64]*table) {
+	data := make([]interface{}, int(table.info.RowCount))
+	seek(r, table.offset)
+	for i := range data {
+		data[i] = readData(r, table, tables)
+	}
+	table.data = data
 }
 
 func readName(r *bytes.Reader) (name, string) {

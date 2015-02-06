@@ -206,14 +206,10 @@ func (s *session) list(list interface{}) []interface{} {
 	switch l := list.(type) {
 	case nil:
 		return nil
+	case []interface{}:
+		return l
 	case *dbpf.Package:
 		return s.listResources(l)
-	case []uint64:
-		il := make([]interface{}, len(l))
-		for i, v := range l {
-			il[i] = v
-		}
-		return il
 	default:
 		s.panic("variable type does not contain a list")
 		return nil
