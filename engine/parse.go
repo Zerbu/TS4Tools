@@ -48,11 +48,29 @@ func parseAction(p *parser) action {
 		p.end()
 		return nil
 
+	case "if":
+		predicater := parseExpression(p)
+		actioner := parseExpression(p)
+		p.end()
+		return func(s *session) {
+			fmt.Printf("starting if\n")
+			predicate := predicater(s).(predicate)
+			action := actioner(s).(action)
+			if predicate(s) {
+				session := newSession()
+				session.parent = s
+				action(session)
+				session.close()
+			}
+			fmt.Printf("ending if\n")
+		}
+
 	case "for":
 		temp := p.word()
 		p.ensure("in")
 		lister := parseExpression(p)
 		actioner := parseExpression(p)
+		p.end()
 		return func(s *session) {
 			fmt.Printf("starting for\n")
 			list := s.list(lister(s))
@@ -71,6 +89,7 @@ func parseAction(p *parser) action {
 		name := p.name()
 		p.ensure("to")
 		valuer := parseExpression(p)
+		p.end()
 		return func(s *session) {
 			fmt.Printf("setting %v\n", name)
 			value := valuer(s)
@@ -194,6 +213,12 @@ func parseExpression(p *parser) expression {
 		return func(s *session) interface{} {
 			return str
 		}
+	case '(':
+		group := p.group('(', ')')
+		pre := parsePredicate(group)
+		return func(s *session) interface{} {
+			return pre
+		}
 	case '[':
 		group := p.group('[', ']')
 		con := parseConstruction(group)
@@ -216,6 +241,23 @@ func parseExpression(p *parser) expression {
 		return func(s *session) interface{} {
 			return s.fetch(name)
 		}
+	}
+}
+
+func parsePredicate(p *parser) predicate {
+	valuer := parseExpression(p)
+	word := p.word()
+	switch word {
+	case "is":
+		kind := p.word()
+		p.end()
+		return func(s *session) bool {
+			value := valuer(s)
+			return s.is(value, kind)
+		}
+	default:
+		p.panic("predicate '%v' not recognized", word)
+		return nil
 	}
 }
 

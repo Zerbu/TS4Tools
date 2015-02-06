@@ -64,6 +64,12 @@ func (p *Package) Close() {
 }
 
 func (p *Package) AddResource(resource *Resource) {
+	for i, r := range p.resources {
+		if r.key == resource.key {
+			p.resources[i] = resource
+			return
+		}
+	}
 	p.resources = append(p.resources, resource)
 }
 

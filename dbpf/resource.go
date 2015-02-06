@@ -55,6 +55,8 @@ func (r *Resource) SetKey(key keys.Key) {
 
 func (r *Resource) ToBytes() ([]byte, error) {
 	switch r.entry.Extended.CompressionType {
+	case compDeleted:
+		return nil, nil
 	case compZLIB:
 		_, err := r.p.file.Seek(int64(r.entry.Fixed.Position), os.SEEK_SET)
 		if err != nil {

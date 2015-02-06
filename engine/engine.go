@@ -28,6 +28,8 @@ type action func(s *session)
 
 type expression func(s *session) interface{}
 
+type predicate func(s *session) bool
+
 type construction expression
 
 func RunFile(path string) (e error) {

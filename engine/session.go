@@ -80,6 +80,18 @@ func (s *session) panic(message string, args ...interface{}) {
 	panic(fmt.Errorf(message, args...))
 }
 
+func (s *session) is(value interface{}, kind string) bool {
+	switch v := value.(type) {
+	case keys.Key:
+		return kind == "key"
+	case *simdata.Simdata:
+		return kind == "simdata"
+	default:
+		_ = v
+		return false
+	}
+}
+
 func (s *session) introduce(name string, value interface{}) {
 	_, ok := s.vars[name]
 	if ok {
@@ -188,6 +200,9 @@ func (s *session) parseResource(resource *dbpf.Resource, kind string) interface{
 		bytes, err := resource.ToBytes()
 		if err != nil {
 			s.panic(err.Error())
+		}
+		if bytes == nil {
+			return nil
 		}
 		data, err := simdata.Read(bytes)
 		if err != nil {
