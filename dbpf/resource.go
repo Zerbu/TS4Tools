@@ -182,5 +182,7 @@ func (p *Package) saveResourceList() {
 
 	count := len(p.record.Entries)
 	p.header.EntryCount = uint32(count)
-	p.header.RecordSize = uint32((4-num)*4 + (5+num)*count*4)
+	headerSize := 4 * (1 + num)
+	bodySize := count * 4 * (8 - num)
+	p.header.RecordSize = uint32(headerSize + bodySize)
 }
