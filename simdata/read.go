@@ -22,160 +22,272 @@ package simdata
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
+	"github.com/Fogity/TS4Tools/keys"
+	"sort"
 )
 
 const (
-	seekAbs = iota
-	seekRel
-	seekEnd
+	seekAbsolute = 0
 )
 
-func locate(r *bytes.Reader) int64 {
-	loc, err := r.Seek(0, seekRel)
-	if err != nil {
-		panic(err)
-	}
-	return loc
+type readContext struct {
+	header  *header
+	schemas map[int64]*schema
+	tables  map[int64]*table
+	data    map[int64]interface{}
+	sizes   map[int64]int64
+	r       *bytes.Reader
+	p       int64
 }
 
-func seek(r *bytes.Reader, offset int64) {
-	_, err := r.Seek(offset, seekAbs)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func absolute(r *bytes.Reader, offset int32) int64 {
-	return locate(r) + int64(offset) - 4
-}
-
-func read(r *bytes.Reader, v interface{}) {
-	err := binary.Read(r, binary.LittleEndian, v)
+func (c *readContext) seek(offset int64) {
+	p, err := c.r.Seek(offset, seekAbsolute)
+	c.p = p
 	if err != nil {
 		panic(err)
 	}
 }
 
-func readString(r *bytes.Reader) string {
+func (c *readContext) read(v interface{}) {
+	err := binary.Read(c.r, binary.LittleEndian, v)
+	c.p += int64(binary.Size(v))
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (c *readContext) readString() string {
 	var b byte
 	bs := make([]byte, 0)
 	for {
-		read(r, &b)
+		c.read(&b)
 		if b == 0 {
 			break
 		}
 		bs = append(bs, b)
 	}
+	c.p += int64(len(bs) + 1)
 	return string(bs)
 }
 
-func readSimdata(r *bytes.Reader) *Simdata {
-	h := new(header)
-	read(r, &h.Identifier)
-	read(r, &h.Version)
-	read(r, &h.TableInfoOffset)
-	tableInfoOffset := absolute(r, h.TableInfoOffset)
-	read(r, &h.TableInfoCount)
-	read(r, &h.SchemaOffset)
-	schemaOffset := absolute(r, h.SchemaOffset)
-	read(r, &h.SchemaCount)
+func (c *readContext) readSimdata() *Simdata {
+	c.header = new(header)
+	c.read(c.header)
 
-	seek(r, schemaOffset)
-	schemas := make(map[int64]*schema)
-	for i := 0; i < int(h.SchemaCount); i++ {
-		offset := locate(r)
-		schemas[offset] = readSchema(r)
+	tableInfoOffset := c.p + int64(c.header.TableInfoOffset) - headerTableInfoAdjust
+	schemaOffset := c.p + int64(c.header.SchemaOffset) - headerSchemaAdjust
+
+	c.seek(schemaOffset)
+
+	c.schemas = make(map[int64]*schema)
+	for i := 0; i < int(c.header.SchemaCount); i++ {
+		p := c.p
+		schema := c.readSchema()
+		c.schemas[p] = schema
 	}
 
-	seek(r, tableInfoOffset)
-	tables := make(map[int64]*table)
-	for i := 0; i < int(h.TableInfoCount); i++ {
-		offset := locate(r)
-		tables[offset] = readTable(r, schemas)
+	c.seek(tableInfoOffset)
+
+	c.tables = make(map[int64]*table)
+	c.data = make(map[int64]interface{})
+	c.sizes = make(map[int64]int64)
+	for i := 0; i < int(c.header.TableInfoCount); i++ {
+		p := c.p
+		table := c.readTable()
+		c.tables[p] = table
 	}
 
-	for _, table := range tables {
-		readTableData(r, table, tables)
+	keys := make([]int, 0)
+	for key := range c.tables {
+		keys = append(keys, int(key))
+	}
+	sort.Ints(keys)
+
+	for i := len(keys) - 1; i >= 0; i-- {
+		table := c.tables[int64(keys[i])]
+		if table.schema == nil {
+			continue
+		}
+		offset := table.start
+		for k := 0; k < int(table.header.RowCount); k++ {
+			c.data[offset] = c.readObject(offset, table.schema, table.name)
+			offset += int64(table.header.RowSize)
+		}
 	}
 
-	return &Simdata{h, tables, schemas}
+	objects := make(map[string]*object)
+	for _, value := range c.data {
+		object, ok := value.(*object)
+		if !ok {
+			continue
+		}
+		if object.name == "" {
+			continue
+		}
+		objects[object.name] = object
+	}
+
+	return &Simdata{objects}
 }
 
-func readSchema(r *bytes.Reader) *schema {
-	n, name := readName(r)
-
+func (c *readContext) readSchema() *schema {
 	h := new(schemaHeader)
-	h.Name = n
-	read(r, &h.SchemaHash)
-	read(r, &h.SchemaSize)
-	read(r, &h.ColumnOffset)
-	columnOffset := absolute(r, h.ColumnOffset)
-	read(r, &h.ColumnCount)
+	c.read(h)
 
-	curr := locate(r)
-	seek(r, columnOffset)
+	nameOffset := c.p + int64(h.NameOffset) - schemaHeaderNameAdjust
+	columnOffset := c.p + int64(h.ColumnOffset) - schemaHeaderColumnAdjust
+
+	p := c.p
+
+	var name string
+	if h.NameOffset != null {
+		c.seek(nameOffset)
+		name = c.readString()
+	}
+
+	c.seek(columnOffset)
 	columns := make([]*column, h.ColumnCount)
 	for i := range columns {
-		columns[i] = readColumn(r)
-	}
-	seek(r, curr)
-
-	return &schema{name, h, columns}
-}
-
-func readColumn(r *bytes.Reader) *column {
-	n, name := readName(r)
-
-	c := new(schemaColumn)
-	c.Name = n
-	read(r, &c.DataType)
-	read(r, &c.Flags)
-	read(r, &c.Offset)
-	read(r, &c.SchemaOffset)
-
-	return &column{name, c}
-}
-
-func readTable(r *bytes.Reader, schemas map[int64]*schema) *table {
-	n, name := readName(r)
-
-	info := new(tableInfo)
-	info.Name = n
-	read(r, &info.SchemaOffset)
-	schemaOffset := absolute(r, info.SchemaOffset)
-	read(r, &info.DataType)
-	read(r, &info.RowSize)
-	read(r, &info.RowOffset)
-	rowOffset := absolute(r, info.RowOffset)
-	read(r, &info.RowCount)
-
-	return &table{name, info, schemas[schemaOffset], rowOffset, nil}
-}
-
-func readTableData(r *bytes.Reader, table *table, tables map[int64]*table) {
-	data := make([]interface{}, int(table.info.RowCount))
-	seek(r, table.offset)
-	for i := range data {
-		data[i] = readData(r, table, tables)
-	}
-	table.data = data
-}
-
-func readName(r *bytes.Reader) (name, string) {
-	var n name
-
-	read(r, &n.NameOffset)
-	nameOffset := absolute(r, n.NameOffset)
-	read(r, &n.NameHash)
-
-	if n.NameOffset == null {
-		return n, ""
+		columns[i] = c.readColumn()
 	}
 
-	curr := locate(r)
-	seek(r, nameOffset)
-	s := readString(r)
-	seek(r, curr)
+	c.seek(p)
 
-	return n, s
+	return &schema{h, columns, name}
+}
+
+func (c *readContext) readColumn() *column {
+	col := new(schemaColumn)
+	c.read(col)
+
+	nameOffset := c.p + int64(col.NameOffset) - schemaColumnNameAdjust
+
+	p := c.p
+
+	var name string
+	if col.NameOffset != null {
+		c.seek(nameOffset)
+		name = c.readString()
+	}
+
+	c.seek(p)
+
+	return &column{col, name}
+}
+
+func (c *readContext) readTable() *table {
+	h := new(tableInfo)
+	c.read(h)
+
+	nameOffset := c.p + int64(h.NameOffset) - tableInfoNameAdjust
+	schemaOffset := c.p + int64(h.SchemaOffset) - tableInfoSchemaAdjust
+	rowOffset := c.p + int64(h.RowOffset) - tableInfoRowAdjust
+
+	p := c.p
+
+	var name string
+	if h.NameOffset != null {
+		c.seek(nameOffset)
+		name = c.readString()
+	}
+
+	if int(h.DataType) != dtObject {
+		c.seek(rowOffset)
+		for i := 0; i < int(h.RowCount); i++ {
+			offset := c.p
+			c.data[offset] = c.readValue(int(h.DataType))
+			c.sizes[offset] = int64(h.RowSize)
+		}
+	}
+
+	c.seek(p)
+
+	return &table{h, c.schemas[schemaOffset], rowOffset, name}
+}
+
+func (c *readContext) readValue(dataType int) interface{} {
+	switch dataType {
+	case dtChar8:
+		var char uint8
+		c.read(&char)
+		return char
+	case dtInt32:
+		var i int32
+		c.read(&i)
+		return i
+	case dtInt64:
+		var i int64
+		c.read(&i)
+		return i
+	case dtFloat:
+		var f float32
+		c.read(&f)
+		return f
+	case dtString8:
+		var offset uint32
+		c.read(&offset)
+		p := c.p
+		c.seek(p + int64(offset) - 4)
+		str := c.readString()
+		c.seek(p)
+		return str
+	case dtVector:
+		var offset, count uint32
+		c.read(&offset)
+		off := c.p + int64(offset) - 4
+		c.read(&count)
+		vector := make([]interface{}, count)
+		for i := 0; i < int(count); i++ {
+			val, ok := c.data[off]
+			if !ok {
+				panic(fmt.Errorf("element in vector not found"))
+			}
+			vector[i] = val
+			off = off + c.sizes[off]
+		}
+		return vector
+	case dtObject:
+		var offset uint32
+		c.read(&offset)
+		off := c.p + int64(offset) - 4
+		if int32(offset) != null {
+			obj, ok := c.data[off]
+			if !ok {
+				panic(fmt.Errorf("object not found"))
+			}
+			return obj
+		}
+		return nil
+	case dtFloat3:
+		var fs [3]float32
+		c.read(&fs)
+		return fs
+	case dtTableSetReference:
+		var value uint64
+		c.read(&value)
+		return value
+	case dtResourceKey:
+		var t, g uint32
+		var i uint64
+		c.read(&i)
+		c.read(&t)
+		c.read(&g)
+		return keys.Key{t, g, i}
+	case dtLocKey:
+		var key uint32
+		c.read(&key)
+		return key
+	default:
+		panic(fmt.Errorf("data type (%v) not implemented", dataType))
+	}
+}
+
+func (c *readContext) readObject(offset int64, schema *schema, name string) *object {
+	values := make(map[string]interface{})
+	for _, column := range schema.columns {
+		c.seek(offset + int64(column.header.Offset))
+		values[column.name] = c.readValue(int(column.header.DataType))
+	}
+	return &object{schema, values, name}
 }

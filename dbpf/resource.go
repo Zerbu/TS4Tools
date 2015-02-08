@@ -43,6 +43,7 @@ type Resource struct {
 	key   keys.Key
 	p     *Package
 	entry *entry
+	bytes []byte
 }
 
 func (r *Resource) Key() keys.Key {
@@ -80,6 +81,10 @@ func (r *Resource) ToBytes() ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("unknown compression type %v", r.entry.Extended.CompressionType)
 	}
+}
+
+func (r *Resource) FromBytes(b []byte) {
+	r.bytes = b
 }
 
 func (p *Package) loadResourceList() {

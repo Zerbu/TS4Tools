@@ -200,6 +200,18 @@ func parseAction(p *parser) action {
 			s.introduce(name, parsed)
 		}
 
+	case "unparse":
+		valuer := parseExpression(p)
+		p.ensure("as")
+		name := p.word()
+		p.end()
+		return func(s *session) {
+			fmt.Printf("unparsing to %v\n", name)
+			value := valuer(s)
+			unparsed := s.unparseResource(value)
+			s.introduce(name, unparsed)
+		}
+
 	default:
 		p.panic("action '%v' not recognized", word)
 		return nil

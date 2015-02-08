@@ -147,7 +147,7 @@ func (p *parser) string() string {
 	return string(bytes)
 }
 
-func (p *parser) number() int {
+func (p *parser) number() interface{} {
 	p.curr++
 	p.char++
 
@@ -158,13 +158,23 @@ func (p *parser) number() int {
 	p.char += len(bytes) + 1
 	p.trim()
 
-	var num int
-	_, err := fmt.Sscan(string(bytes), &num)
-	if err != nil {
-		p.panic(err.Error())
+	m := len(bytes) - 1
+	switch bytes[m] {
+	case 'f':
+		var num float32
+		_, err := fmt.Sscan(string(bytes[:m]), &num)
+		if err != nil {
+			p.panic(err.Error())
+		}
+		return num
+	default:
+		var num int
+		_, err := fmt.Sscan(string(bytes), &num)
+		if err != nil {
+			p.panic(err.Error())
+		}
+		return num
 	}
-
-	return num
 }
 
 func (p *parser) group(start, end uint8) *parser {

@@ -179,6 +179,11 @@ func (s *session) setAttribute(variable interface{}, parts []string, value inter
 		default:
 			s.panic("type resource does not have the attribute '%v'", parts[0])
 		}
+	case *simdata.Simdata:
+		err := v.SetValue(parts[0], value)
+		if err != nil {
+			s.panic(err.Error())
+		}
 	default:
 		s.panic("variable type does not have attributes")
 	}
@@ -211,6 +216,22 @@ func (s *session) parseResource(resource *dbpf.Resource, kind string) interface{
 		return data
 	default:
 		s.panic("resource type '%v' not recognized", kind)
+		return nil
+	}
+}
+
+func (s *session) unparseResource(value interface{}) *dbpf.Resource {
+	switch v := value.(type) {
+	case *simdata.Simdata:
+		bytes, err := v.Write()
+		if err != nil {
+			s.panic(err.Error())
+		}
+		resource := new(dbpf.Resource)
+		resource.FromBytes(bytes)
+		return resource
+	default:
+		s.panic("value type not unparsable")
 		return nil
 	}
 }

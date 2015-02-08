@@ -21,65 +21,110 @@ package simdata
 
 import (
 	"bytes"
-)
-
-var (
-	identifier = [4]byte{'D', 'A', 'T', 'A'}
-	version    = 0x100
-	null       = int32(-0x7FFFFFFF) - 1
+	"fmt"
 )
 
 type Simdata struct {
-	header  *header
-	tables  map[int64]*table
-	schemas map[int64]*schema
-}
-
-type table struct {
-	name   string
-	info   *tableInfo
-	schema *schema
-	offset int64
-	data   []interface{}
+	objects map[string]*object
 }
 
 type schema struct {
-	name    string
 	header  *schemaHeader
 	columns []*column
+	name    string
 }
 
 type column struct {
+	header *schemaColumn
 	name   string
-	column *schemaColumn
 }
 
-func Read(b []byte) (d *Simdata, err error) {
+type table struct {
+	header *tableInfo
+	schema *schema
+	start  int64
+	name   string
+}
+
+type object struct {
+	schema *schema
+	values map[string]interface{}
+	name   string
+}
+
+func Read(b []byte) (d *Simdata, e error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = r.(error)
+			e = r.(error)
 		}
 	}()
 
 	r := bytes.NewReader(b)
-	d = readSimdata(r)
+
+	c := new(readContext)
+
+	c.r = r
+
+	d = c.readSimdata()
+
+	if len(d.objects) != 1 {
+		e = fmt.Errorf("simdata with %v root objects not supported", len(d.objects))
+	}
 
 	return
 }
 
-func (s *Simdata) GetValue(name string) (interface{}, bool) {
-	for _, table := range s.tables {
-		if table.name != "" {
-			for _, row := range table.data {
-				data, ok := row.(map[string]interface{})
-				if ok {
-					value, ok := data[name]
-					if ok {
-						return value, true
-					}
-				}
-			}
+func (d *Simdata) Write() (b []byte, e error) {
+	defer func() {
+		if r := recover(); r != nil {
+			e = r.(error)
 		}
+	}()
+
+	panic(fmt.Errorf("writing not implemented"))
+
+	return
+}
+
+func (d *Simdata) GetValue(name string) (interface{}, bool) {
+	for _, object := range d.objects {
+		val, ok := object.values[name]
+		return val, ok
 	}
 	return nil, false
+}
+
+func (d *Simdata) SetValue(name string, value interface{}) error {
+	for _, object := range d.objects {
+		found := false
+		for _, column := range object.schema.columns {
+			if column.name == name {
+				ok, err := checkType(value, int(column.header.DataType))
+				if err != nil {
+					return err
+				}
+				if !ok {
+					return fmt.Errorf("value not of correct type")
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("object do not have the specified field")
+		}
+		object.values[name] = value
+		return nil
+	}
+	return fmt.Errorf("no object found")
+}
+
+func checkType(value interface{}, dataType int) (bool, error) {
+	switch dataType {
+	case dtFloat:
+		_, ok := value.(float32)
+		return ok, nil
+	default:
+		return false, fmt.Errorf("data type (%v) not implemented", dataType)
+	}
 }

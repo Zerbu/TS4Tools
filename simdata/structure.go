@@ -19,10 +19,39 @@ along with TS4Tools.  If not, see <http://www.gnu.org/licenses/>.
 
 package simdata
 
-type name struct {
-	NameOffset int32
-	NameHash   uint32
-}
+var (
+	identifier = [4]byte{'D', 'A', 'T', 'A'}
+)
+
+const (
+	version = 0x100
+	null    = int32(-0x7FFFFFFF) - 1
+)
+
+const (
+	dtBool = iota
+	dtChar8
+	dtInt8
+	dtUInt8
+	dtInt16
+	dtUInt16
+	dtInt32
+	dtUInt32
+	dtInt64
+	dtUInt64
+	dtFloat
+	dtString8
+	dtHashedString8
+	dtObject
+	dtVector
+	dtFloat2
+	dtFloat3
+	dtFloat4
+	dtTableSetReference
+	dtResourceKey
+	dtLocKey
+	dtUndefined
+)
 
 type header struct {
 	Identifier      [4]byte
@@ -33,8 +62,14 @@ type header struct {
 	SchemaCount     int32
 }
 
+const (
+	headerTableInfoAdjust = int64(16)
+	headerSchemaAdjust    = int64(8)
+)
+
 type tableInfo struct {
-	Name         name
+	NameOffset   int32
+	NameHash     uint32
 	SchemaOffset int32
 	DataType     uint32
 	RowSize      uint32
@@ -42,18 +77,36 @@ type tableInfo struct {
 	RowCount     uint32
 }
 
+const (
+	tableInfoNameAdjust   = int64(28)
+	tableInfoSchemaAdjust = int64(20)
+	tableInfoRowAdjust    = int64(8)
+)
+
 type schemaHeader struct {
-	Name         name
+	NameOffset   int32
+	NameHash     uint32
 	SchemaHash   uint32
 	SchemaSize   uint32
 	ColumnOffset int32
 	ColumnCount  uint32
 }
 
+const (
+	schemaHeaderNameAdjust   = int64(24)
+	schemaHeaderColumnAdjust = int64(8)
+)
+
 type schemaColumn struct {
-	Name         name
+	NameOffset   int32
+	NameHash     uint32
 	DataType     uint16
 	Flags        uint16
 	Offset       uint32
 	SchemaOffset int32
 }
+
+const (
+	schemaColumnNameAdjust   = int64(20)
+	schemaColumnSchemaAdjust = int64(4)
+)
