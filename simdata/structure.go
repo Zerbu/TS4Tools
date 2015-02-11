@@ -19,8 +19,13 @@ along with TS4Tools.  If not, see <http://www.gnu.org/licenses/>.
 
 package simdata
 
+import (
+	"github.com/Fogity/TS4Tools/hash"
+)
+
 var (
 	identifier = [4]byte{'D', 'A', 'T', 'A'}
+	nullHash   = hash.Fnv32("")
 )
 
 const (
@@ -53,6 +58,11 @@ const (
 	dtUndefined
 )
 
+const (
+	headerTableInfoOffset = int32(8)
+	headerSchemaOffset    = int32(16)
+)
+
 type header struct {
 	Identifier      [4]byte
 	Version         uint32
@@ -65,6 +75,11 @@ type header struct {
 const (
 	headerTableInfoAdjust = int64(16)
 	headerSchemaAdjust    = int64(8)
+)
+
+const (
+	tableInfoSchemaOffset = int32(8)
+	tableInfoRowOffset    = int32(20)
 )
 
 type tableInfo struct {
@@ -83,6 +98,10 @@ const (
 	tableInfoRowAdjust    = int64(8)
 )
 
+const (
+	schemaHeaderColumnOffset = int32(16)
+)
+
 type schemaHeader struct {
 	NameOffset   int32
 	NameHash     uint32
@@ -95,6 +114,10 @@ type schemaHeader struct {
 const (
 	schemaHeaderNameAdjust   = int64(24)
 	schemaHeaderColumnAdjust = int64(8)
+)
+
+const (
+	schemaColumnSchemaOffset = int32(24)
 )
 
 type schemaColumn struct {

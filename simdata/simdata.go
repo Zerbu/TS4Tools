@@ -81,7 +81,11 @@ func (d *Simdata) Write() (b []byte, e error) {
 		}
 	}()
 
-	panic(fmt.Errorf("writing not implemented"))
+	c := new(writeContext)
+
+	c.d = d
+
+	b = c.writeSimdata()
 
 	return
 }
