@@ -289,6 +289,13 @@ func parseConstruction(p *parser) construction {
 			return keys.Key{toHash32(p, typer(s)), toHash24(p, grouper(s)), toHash64(p, instancer(s))}
 		}
 
+	case "type":
+		hasher := parseExpression(p)
+		p.end()
+		return func(s *session) interface{} {
+			return &keys.Filter{[]uint32{toHash32(p, hasher(s))}, nil, nil}
+		}
+
 	case "group":
 		hasher := parseExpression(p)
 		p.end()
