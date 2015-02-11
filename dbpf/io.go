@@ -64,7 +64,6 @@ func (p *Package) readFile(path string) error {
 }
 
 func (p *Package) writeFile(path string) error {
-
 	temp, err := ioutil.TempFile(".", "dbpf-")
 	if err != nil {
 		return err
@@ -72,6 +71,14 @@ func (p *Package) writeFile(path string) error {
 	err = binary.Write(temp, binary.LittleEndian, &p.header)
 	if err != nil {
 		return err
+	}
+	for _, resoruce := range p.resources {
+		if resoruce.comp != nil {
+			err = binary.Write(temp, binary.LittleEndian, resoruce.comp)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	err = p.writeRecord(temp)
 	if err != nil {

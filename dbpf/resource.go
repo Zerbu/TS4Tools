@@ -28,11 +28,11 @@ import (
 )
 
 const (
-	compUncompressed = 0x0000
-	compStreamable   = 0xFFFE
-	compInternal     = 0xFFFF
-	compDeleted      = 0xFFE0
-	compZLIB         = 0x5A42
+	compUncompressed = uint16(0x0000)
+	compStreamable   = uint16(0xFFFE)
+	compInternal     = uint16(0xFFFF)
+	compDeleted      = uint16(0xFFE0)
+	compZLIB         = uint16(0x5A42)
 )
 
 const (
@@ -44,6 +44,7 @@ type Resource struct {
 	p     *Package
 	entry *entry
 	bytes []byte
+	comp  []byte
 }
 
 func (r *Resource) Key() keys.Key {
@@ -124,12 +125,14 @@ func (p *Package) loadResourceList() {
 	}
 }
 
-func (p *Package) saveResourceList() {
+func (p *Package) saveResourceList() error {
 	p.record.Entries = make([]*entry, len(p.resources))
 
 	if len(p.record.Entries) == 0 {
-		return
+		return nil
 	}
+
+	offset := uint32(headerSize)
 
 	isConstType := true
 	isConstGroup := true
@@ -161,7 +164,30 @@ func (p *Package) saveResourceList() {
 		entry.Group = g
 		entry.InstanceEx = ie
 		entry.Fixed.Instance = in
-		entry.Fixed.CompressedSize = extendedCompressionType
+
+		if resource.bytes == nil {
+			entry.Fixed.CompressedSize = extendedCompressionType
+		} else {
+			entry.Fixed.DecompressedSize = uint32(len(resource.bytes))
+
+			buf := new(bytes.Buffer)
+			w := zlib.NewWriter(buf)
+			_, err := w.Write(resource.bytes)
+			if err != nil {
+				return err
+			}
+			w.Close()
+			resource.comp = buf.Bytes()
+
+			entry.Fixed.CompressedSize = uint32(len(resource.comp)) | extendedCompressionType
+
+			entry.Extended.CompressionType = compZLIB
+
+			entry.Fixed.Position = offset
+
+			offset += uint32(len(resource.comp))
+		}
+
 		entry.Extended.Committed = committed
 
 		p.record.Entries[i] = &entry
@@ -192,4 +218,8 @@ func (p *Package) saveResourceList() {
 	headerSize := 4 * (1 + num)
 	bodySize := count * 4 * (8 - num)
 	p.header.RecordSize = uint32(headerSize + bodySize)
+
+	p.header.RecordPosition = uint64(offset)
+
+	return nil
 }

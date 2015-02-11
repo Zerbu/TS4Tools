@@ -54,7 +54,10 @@ func (p *Package) Save() error {
 }
 
 func (p *Package) SaveAs(path string) error {
-	p.saveResourceList()
+	err := p.saveResourceList()
+	if err != nil {
+		return err
+	}
 	return p.writeFile(path)
 }
 
