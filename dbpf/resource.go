@@ -24,6 +24,7 @@ import (
 	"compress/zlib"
 	"fmt"
 	"github.com/Fogity/TS4Tools/keys"
+	"io/ioutil"
 	"os"
 )
 
@@ -73,12 +74,11 @@ func (r *Resource) ToBytes() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		uncompressed := make([]byte, r.entry.Fixed.DecompressedSize)
-		_, err = reader.Read(uncompressed)
+		decompressed, err := ioutil.ReadAll(reader)
 		if err != nil {
 			return nil, err
 		}
-		return uncompressed, nil
+		return decompressed, nil
 	default:
 		return nil, fmt.Errorf("unknown compression type %v", r.entry.Extended.CompressionType)
 	}
