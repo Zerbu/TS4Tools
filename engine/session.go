@@ -325,7 +325,6 @@ func (s *session) parseResource(resource *dbpf.Resource, kind string) interface{
 		}
 		caspart, err := caspart.Read(bytes)
 		if err != nil {
-			fmt.Printf("bad part: %v\n", resource.Key())
 			s.panic(err.Error())
 		}
 		return caspart
