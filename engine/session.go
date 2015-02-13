@@ -21,6 +21,8 @@ package engine
 
 import (
 	"fmt"
+	"github.com/Fogity/TS4Tools/caspart"
+	"github.com/Fogity/TS4Tools/combined"
 	"github.com/Fogity/TS4Tools/dbpf"
 	"github.com/Fogity/TS4Tools/keys"
 	"github.com/Fogity/TS4Tools/simdata"
@@ -39,6 +41,8 @@ func newSession() *session {
 	s.vars = make(map[string]interface{})
 	s.merges = make(map[*dbpf.Package][]*dbpf.Package)
 	s.includes = make(map[*dbpf.Package]*keys.Filter)
+	s.vars["true"] = true
+	s.vars["false"] = false
 	return s
 }
 
@@ -143,6 +147,43 @@ func (s *session) fetchAttribute(variable interface{}, attributes []string) inte
 		if !ok {
 			s.panic("could not find attribute '%v' in simdata", attributes[0])
 		}
+	case *combined.Combined:
+		ok = false
+		for _, entry := range v.Entries {
+			if entry.Type == attributes[0] {
+				list := make([]interface{}, 0)
+				for _, instance := range entry.Instances {
+					list = append(list, instance)
+				}
+				attr = list
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			s.panic("could not find type %v in combined", attributes[0])
+		}
+	case combined.Instance:
+		ok = false
+		for _, tunable := range v.Tunables {
+			if tunable.Name == attributes[0] {
+				attr = tunable
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			s.panic("could not find tunable %v in instance", attributes[0])
+		}
+	case combined.Tunable:
+		switch attributes[0] {
+		case "name":
+			attr = v.Name
+		case "value":
+			attr = v.Value
+		default:
+			s.panic("type tunable does not have the attribute '%v'", attributes[0])
+		}
 	default:
 		s.panic("variable type does not have attributes")
 	}
@@ -184,8 +225,58 @@ func (s *session) setAttribute(variable interface{}, parts []string, value inter
 		if err != nil {
 			s.panic(err.Error())
 		}
+	case *caspart.CasPart:
+		switch parts[0] {
+		case "ShowInUI":
+			if value == true {
+				v.ParamFlags |= caspart.ShowInUI
+				return
+			}
+			if value == false {
+				v.ParamFlags ^= caspart.ShowInUI
+				return
+			}
+			s.panic("expected boolean")
+		default:
+			s.panic("type caspart does not have the attribute '%v'", parts[0])
+		}
 	default:
 		s.panic("variable type does not have attributes")
+	}
+}
+
+func (s *session) search(list, query interface{}) []interface{} {
+	switch l := list.(type) {
+	case combined.Tunable:
+		q, ok := query.(string)
+		if !ok {
+			s.panic("expected string as query")
+		}
+		parts := strings.Split(q, ":")
+		if len(parts) != 2 {
+			s.panic("did not understand query %v", q)
+		}
+		switch parts[0] {
+		case "tag":
+			result := make([]interface{}, 0)
+			var f func(combined.Tunable)
+			f = func(tunable combined.Tunable) {
+				for _, t := range tunable.Tunables {
+					if t.XMLName.Local == parts[1] {
+						result = append(result, t)
+					}
+					f(t)
+				}
+			}
+			f(l)
+			return result
+		default:
+			s.panic("not recognized attribute %v", parts[0])
+			return nil
+		}
+	default:
+		s.panic("variable type is not searchable")
+		return nil
 	}
 }
 
@@ -214,6 +305,30 @@ func (s *session) parseResource(resource *dbpf.Resource, kind string) interface{
 			s.panic(err.Error())
 		}
 		return data
+	case "combined":
+		bytes, err := resource.ToBytes()
+		if err != nil {
+			s.panic(err.Error())
+		}
+		if bytes == nil {
+			return nil
+		}
+		combined, err := combined.Read(bytes)
+		if err != nil {
+			s.panic(err.Error())
+		}
+		return combined
+	case "caspart":
+		bytes, err := resource.ToBytes()
+		if err != nil {
+			s.panic(err.Error())
+		}
+		caspart, err := caspart.Read(bytes)
+		if err != nil {
+			fmt.Printf("bad part: %v\n", resource.Key())
+			s.panic(err.Error())
+		}
+		return caspart
 	default:
 		s.panic("resource type '%v' not recognized", kind)
 		return nil
@@ -223,6 +338,14 @@ func (s *session) parseResource(resource *dbpf.Resource, kind string) interface{
 func (s *session) unparseResource(value interface{}) *dbpf.Resource {
 	switch v := value.(type) {
 	case *simdata.Simdata:
+		bytes, err := v.Write()
+		if err != nil {
+			s.panic(err.Error())
+		}
+		resource := new(dbpf.Resource)
+		resource.FromBytes(bytes)
+		return resource
+	case *caspart.CasPart:
 		bytes, err := v.Write()
 		if err != nil {
 			s.panic(err.Error())
@@ -257,6 +380,12 @@ func (s *session) list(list interface{}) []interface{} {
 		return l
 	case *dbpf.Package:
 		return s.listResources(l)
+	case combined.Tunable:
+		tunables := make([]interface{}, 0)
+		for _, t := range l.Tunables {
+			tunables = append(tunables, t)
+		}
+		return tunables
 	default:
 		s.panic("variable type does not contain a list")
 		return nil

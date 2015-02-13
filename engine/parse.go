@@ -267,6 +267,14 @@ func parsePredicate(p *parser) predicate {
 			value := valuer(s)
 			return s.is(value, kind)
 		}
+	case "=":
+		otherer := parseExpression(p)
+		p.end()
+		return func(s *session) bool {
+			value := valuer(s)
+			other := otherer(s)
+			return value == other
+		}
 	default:
 		p.panic("predicate '%v' not recognized", word)
 		return nil
@@ -279,6 +287,24 @@ func parseConstruction(p *parser) construction {
 	case "":
 		p.end()
 		return nil
+
+	case "int":
+		valuer := parseExpression(p)
+		p.end()
+		return func(s *session) interface{} {
+			switch v := valuer(s).(type) {
+			case string:
+				var i int
+				_, err := fmt.Sscan(v, &i)
+				if err != nil {
+					s.panic(err.Error())
+				}
+				return i
+			default:
+				s.panic("can not convert to int")
+				return nil
+			}
+		}
 
 	case "key":
 		typer := parseExpression(p)
@@ -308,6 +334,17 @@ func parseConstruction(p *parser) construction {
 		p.end()
 		return func(s *session) interface{} {
 			return &keys.Filter{nil, nil, []uint64{toHash64(p, hasher(s))}}
+		}
+
+	case "search":
+		lister := parseExpression(p)
+		p.ensure("for")
+		queryer := parseExpression(p)
+		p.end()
+		return func(s *session) interface{} {
+			list := lister(s)
+			query := queryer(s)
+			return s.search(list, query)
 		}
 
 	default:
