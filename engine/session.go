@@ -173,7 +173,7 @@ func (s *session) fetchAttribute(variable interface{}, attributes []string) inte
 			}
 		}
 		if !ok {
-			s.panic("could not find tunable %v in instance", attributes[0])
+			s.panic("could not find tunable %v in instance %v", attributes[0], v.Name)
 		}
 	case combined.Tunable:
 		switch attributes[0] {
