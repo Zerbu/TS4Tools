@@ -22,6 +22,7 @@ package combined
 import (
 	"bytes"
 	"encoding/xml"
+	"fmt"
 )
 
 type Combined struct {
@@ -42,16 +43,92 @@ type Instance struct {
 }
 
 type Tunable struct {
-	XMLName  xml.Name
-	Name     string    `xml:"n,attr"`
-	Type     string    `xml:"t,attr"`
-	Tunables []Tunable `xml:",any"`
-	Value    string    `xml:",chardata"`
+	XMLName   xml.Name
+	Name      string    `xml:"n,attr"`
+	Type      string    `xml:"t,attr"`
+	Reference string    `xml:"x,attr"`
+	Tunables  []Tunable `xml:",any"`
+	Value     string    `xml:",chardata"`
 }
 
 func Read(b []byte) (*Combined, error) {
 	decoder := xml.NewDecoder(bytes.NewReader(b))
 	c := new(Combined)
 	err := decoder.Decode(c)
-	return c, err
+	if err != nil {
+		return nil, err
+	}
+
+	references := extractReferences(b)
+
+	c = dereference(c, references)
+
+	return c, nil
+}
+
+func dereference(combined *Combined, references map[int]Tunable) *Combined {
+	var c Combined
+	c = *combined
+	for k, entry := range c.Entries {
+		e := entry
+		for m, instance := range e.Instances {
+			i := instance
+			for p, tunable := range i.Tunables {
+				i.Tunables[p] = dereferenceCopy(tunable, references)
+			}
+			e.Instances[m] = i
+		}
+		c.Entries[k] = e
+	}
+	return &c
+}
+
+func dereferenceCopy(tunable Tunable, references map[int]Tunable) Tunable {
+	var t Tunable
+	if tunable.XMLName.Local == "r" {
+		var x int
+		fmt.Sscan(tunable.Reference, &x)
+		t = references[x]
+		if tunable.Name != "" {
+			t.Name = tunable.Name
+		}
+	} else {
+		t = tunable
+	}
+
+	for i, st := range t.Tunables {
+		t.Tunables[i] = dereferenceCopy(st, references)
+	}
+
+	return t
+}
+
+func extractReferences(b []byte) map[int]Tunable {
+	decoder := xml.NewDecoder(bytes.NewReader(b))
+	references := make(map[int]Tunable)
+	for {
+		token, _ := decoder.Token()
+
+		if token == nil {
+			break
+		}
+
+		switch t := token.(type) {
+		case xml.StartElement:
+			if t.Name.Local == "r" {
+				continue
+			}
+			for _, attr := range t.Attr {
+				if attr.Name.Local != "x" {
+					continue
+				}
+				var x int
+				fmt.Sscan(attr.Value, &x)
+				var tunable Tunable
+				decoder.DecodeElement(&tunable, &t)
+				references[x] = tunable
+			}
+		}
+	}
+	return references
 }
