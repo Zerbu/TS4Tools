@@ -57,14 +57,21 @@ func Read(b []byte) (*CasPart, error) {
 		p.Presets[i] = preset
 	}
 
-	bt, err := r.ReadByte()
+	low, err := r.ReadByte()
 	if err != nil {
 		return nil, err
 	}
-	if bt > 127 {
-		return nil, fmt.Errorf("large names are not supported")
+	var size int
+	if low > 127 {
+		high, err := r.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+		size = int((high << 7) | (low & 0x7F))
+	} else {
+		size = int(low)
 	}
-	bts := make([]byte, bt/2)
+	bts := make([]byte, size/2)
 	for i := range bts {
 		r.ReadByte()
 		t, err := r.ReadByte()
@@ -203,9 +210,21 @@ func (p *CasPart) Write() ([]byte, error) {
 		return nil, err
 	}
 
-	err = b.WriteByte(byte(len(p.Name) * 2))
-	if err != nil {
-		return nil, err
+	size := len(p.Name) * 2
+	if size > 127 {
+		err = b.WriteByte(byte((size & 0x7F) | 0x80))
+		if err != nil {
+			return nil, err
+		}
+		err = b.WriteByte(byte(size >> 7))
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err = b.WriteByte(byte(size))
+		if err != nil {
+			return nil, err
+		}
 	}
 	for _, bt := range p.Name {
 		err = b.WriteByte(0)
