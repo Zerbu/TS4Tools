@@ -34,6 +34,7 @@ type session struct {
 	vars     map[string]interface{}
 	merges   map[*dbpf.Package][]*dbpf.Package
 	includes map[*dbpf.Package]*keys.Filter
+	excludes map[*dbpf.Package]*keys.Filter
 }
 
 func newSession() *session {
@@ -41,6 +42,7 @@ func newSession() *session {
 	s.vars = make(map[string]interface{})
 	s.merges = make(map[*dbpf.Package][]*dbpf.Package)
 	s.includes = make(map[*dbpf.Package]*keys.Filter)
+	s.excludes = make(map[*dbpf.Package]*keys.Filter)
 	s.vars["true"] = true
 	s.vars["false"] = false
 	return s
@@ -77,6 +79,9 @@ func (s *session) transfer(session *session) {
 	}
 	for p, include := range s.includes {
 		session.includes[p] = keys.MergeFilters(session.includes[p], include)
+	}
+	for p, exclude := range s.excludes {
+		session.excludes[p] = keys.MergeFilters(session.excludes[p], exclude)
 	}
 }
 
@@ -133,7 +138,7 @@ func (s *session) fetchAttribute(variable interface{}, attributes []string) inte
 		case "instance":
 			attr = v.Instance
 		default:
-			s.panic("type resource does not have the attribute '%v'", attributes[0])
+			s.panic("type key does not have the attribute '%v'", attributes[0])
 		}
 	case *dbpf.Resource:
 		switch attributes[0] {
@@ -184,6 +189,15 @@ func (s *session) fetchAttribute(variable interface{}, attributes []string) inte
 		default:
 			s.panic("type tunable does not have the attribute '%v'", attributes[0])
 		}
+	case *caspart.CasPart:
+		switch attributes[0] {
+		case "name":
+			return v.Name
+		case "showInUI":
+			return v.ParamFlags&caspart.ShowInUI != 0
+		default:
+			s.panic("type caspart does not have the attribute '%v'", attributes[0])
+		}
 	default:
 		s.panic("variable type does not have attributes")
 	}
@@ -199,10 +213,7 @@ func (s *session) set(name string, value interface{}) {
 		return
 	}
 	parts := strings.Split(name, ".")
-	v, ok := s.vars[parts[0]]
-	if !ok {
-		s.panic("variable '%v' not defined", parts[0])
-	}
+	v := s.fetch(parts[0])
 	s.setAttribute(v, parts[1:], value)
 }
 
@@ -227,7 +238,9 @@ func (s *session) setAttribute(variable interface{}, parts []string, value inter
 		}
 	case *caspart.CasPart:
 		switch parts[0] {
-		case "ShowInUI":
+		case "name":
+			v.Name = value.(string)
+		case "showInUI":
 			if value == true {
 				v.ParamFlags |= caspart.ShowInUI
 				return
@@ -371,6 +384,11 @@ func (s *session) mergeInclude(filter *keys.Filter, pack *dbpf.Package) {
 	s.includes[pack] = keys.MergeFilters(f, filter)
 }
 
+func (s *session) mergeExclude(filter *keys.Filter, pack *dbpf.Package) {
+	f := s.excludes[pack]
+	s.excludes[pack] = keys.MergeFilters(f, filter)
+}
+
 func (s *session) list(list interface{}) []interface{} {
 	switch l := list.(type) {
 	case nil:
@@ -392,9 +410,9 @@ func (s *session) list(list interface{}) []interface{} {
 }
 
 func (s *session) listResources(pack *dbpf.Package) []interface{} {
-	resources := pack.ListResources(s.includes[pack], nil)
+	resources := pack.ListResources(s.includes[pack], s.excludes[pack], nil)
 	for _, p := range s.merges[pack] {
-		p.ListResources(s.includes[pack], resources)
+		p.ListResources(s.includes[pack], s.excludes[pack], resources)
 	}
 	list := make([]interface{}, 0)
 	for _, resource := range resources {

@@ -66,6 +66,36 @@ func (f *Filter) Include(k Keyer) bool {
 	return true
 }
 
+func (f *Filter) Exclude(k Keyer) bool {
+	key := k.Key()
+
+	if f.Types != nil {
+		for _, t := range f.Types {
+			if t == key.Type {
+				return true
+			}
+		}
+	}
+
+	if f.Groups != nil {
+		for _, g := range f.Groups {
+			if g == key.Group {
+				return true
+			}
+		}
+	}
+
+	if f.Instances != nil {
+		for _, i := range f.Instances {
+			if i == key.Instance {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func MergeFilters(a, b *Filter) *Filter {
 	var types, groups []uint32
 	var instances []uint64

@@ -74,15 +74,15 @@ func (p *parser) findEndOfGroup(start, end uint8) (int, int, int) {
 		case '\n':
 			l++
 			c = 0
-		case start:
-			n++
-			c++
 		case end:
 			n--
 			if n == 0 {
 				c++
 				return i, l, c
 			}
+		case start:
+			n++
+			c++
 		default:
 			c++
 		}
@@ -131,6 +131,32 @@ func (p *parser) name() string {
 	p.trim()
 
 	return string(bytes)
+}
+
+func (p *parser) part(end uint8) *parser {
+	n := p.findCharOrEnd(end)
+	bytes := p.bytes[p.curr:n]
+
+	parser := new(parser)
+	parser.bytes = bytes
+	parser.line = p.line
+	parser.char = p.char
+
+	p.curr = n + 1
+	p.char += len(bytes) + 1
+	p.trim()
+
+	return parser
+}
+
+func (p *parser) parts(start, middle, end uint8) []*parser {
+	parts := make([]*parser, 0)
+	group := p.group(start, end)
+	for group.hasMore() {
+		part := group.part(middle)
+		parts = append(parts, part)
+	}
+	return parts
 }
 
 func (p *parser) string() string {

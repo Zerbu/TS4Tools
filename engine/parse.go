@@ -24,6 +24,7 @@ import (
 	"github.com/Fogity/TS4Tools/dbpf"
 	"github.com/Fogity/TS4Tools/hash"
 	"github.com/Fogity/TS4Tools/keys"
+	"strings"
 )
 
 func parse(p *parser) action {
@@ -163,6 +164,18 @@ func parseAction(p *parser) action {
 			s.mergeInclude(filter, pack)
 		}
 
+	case "exclude":
+		filterer := parseExpression(p)
+		p.ensure("from")
+		packer := parseExpression(p)
+		p.end()
+		return func(s *session) {
+			fmt.Printf("excluding\n")
+			filter := filterer(s).(*keys.Filter)
+			pack := packer(s).(*dbpf.Package)
+			s.mergeExclude(filter, pack)
+		}
+
 	case "add":
 		resourcer := parseExpression(p)
 		p.ensure("to")
@@ -248,6 +261,19 @@ func parseExpression(p *parser) expression {
 		return func(s *session) interface{} {
 			return num
 		}
+	case '|':
+		parts := p.parts('|', ',', '|')
+		itemers := make([]expression, len(parts))
+		for i, part := range parts {
+			itemers[i] = parseExpression(part)
+		}
+		return func(s *session) interface{} {
+			list := make([]interface{}, len(itemers))
+			for i, itemer := range itemers {
+				list[i] = itemer(s)
+			}
+			return list
+		}
 	default:
 		name := p.name()
 		return func(s *session) interface{} {
@@ -274,6 +300,14 @@ func parsePredicate(p *parser) predicate {
 			value := valuer(s)
 			other := otherer(s)
 			return value == other
+		}
+	case "contains":
+		stringer := parseExpression(p)
+		p.end()
+		return func(s *session) bool {
+			value := valuer(s).(string)
+			str := stringer(s).(string)
+			return strings.Contains(value, str)
 		}
 	default:
 		p.panic("predicate '%v' not recognized", word)

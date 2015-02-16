@@ -76,7 +76,7 @@ func (p *Package) AddResource(resource *Resource) {
 	p.resources = append(p.resources, resource)
 }
 
-func (p *Package) ListResources(include *keys.Filter, resources map[keys.Key]*Resource) map[keys.Key]*Resource {
+func (p *Package) ListResources(include, exclude *keys.Filter, resources map[keys.Key]*Resource) map[keys.Key]*Resource {
 	if resources == nil {
 		resources = make(map[keys.Key]*Resource)
 	}
@@ -84,6 +84,11 @@ func (p *Package) ListResources(include *keys.Filter, resources map[keys.Key]*Re
 	for _, resource := range p.resources {
 		if include != nil {
 			if !include.Include(resource) {
+				continue
+			}
+		}
+		if exclude != nil {
+			if exclude.Exclude(resource) {
 				continue
 			}
 		}
