@@ -17,47 +17,14 @@ You should have received a copy of the GNU General Public License
 along with TS4Tools.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package engine
+package script
 
-import (
-	"io/ioutil"
-	"os"
-)
+import "github.com/Fogity/GoLibs/script"
 
-type action func(s *session)
+func Run(data []byte) error {
+	return script.Run(definitions, data)
+}
 
-type expression func(s *session) interface{}
-
-type predicate func(s *session) bool
-
-type construction expression
-
-func RunFile(path string) (e error) {
-	defer func() {
-		if r := recover(); r != nil {
-			e = r.(error)
-		}
-	}()
-
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	bytes, err := ioutil.ReadAll(file)
-	if err != nil {
-		return err
-	}
-
-	p := new(parser)
-	p.bytes = bytes
-
-	script := parse(p)
-
-	s := newSession()
-	script(s)
-	s.close()
-
-	return
+func RunFile(path string) error {
+	return script.RunFile(definitions, path)
 }

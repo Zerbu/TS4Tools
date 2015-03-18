@@ -21,8 +21,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/Fogity/TS4Tools/engine"
 	"os"
+
+	"github.com/Fogity/TS4Tools/script"
 )
 
 func main() {
@@ -33,7 +34,7 @@ func main() {
 
 	fmt.Printf("Running script...\n")
 
-	err := engine.RunFile(os.Args[1])
+	err := script.RunFile(os.Args[1])
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
