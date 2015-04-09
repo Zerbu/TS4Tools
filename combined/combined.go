@@ -33,19 +33,25 @@ type Combined struct {
 type Entry struct {
 	Type      string     `xml:"n,attr"`
 	Instances []Instance `xml:"I"`
+	Modules   []Instance `xml:"M"`
 }
 
 type Instance struct {
 	XMLName  xml.Name
+	Class    string    `xml:"c,attr"`
+	Instance string    `xml:"i,attr"`
+	Module   string    `xml:"m,attr"`
 	Name     string    `xml:"n,attr"`
-	Type     string    `xml:"t,attr"`
+	Id       string    `xml:"s,attr"`
 	Tunables []Tunable `xml:",any"`
 }
 
 type Tunable struct {
 	XMLName   xml.Name
+	Type      string    `xml:",attr"`
+	Path      string    `xml:"p,attr"`
+	Enum      string    `xml:"ev,attr"`
 	Name      string    `xml:"n,attr"`
-	Type      string    `xml:"t,attr"`
 	Reference string    `xml:"x,attr"`
 	Tunables  []Tunable `xml:",any"`
 	Value     string    `xml:",chardata"`
@@ -77,6 +83,13 @@ func dereference(combined *Combined, references map[int]Tunable) *Combined {
 				i.Tunables[p] = dereferenceCopy(tunable, references)
 			}
 			e.Instances[m] = i
+		}
+		for m, instance := range e.Modules {
+			i := instance
+			for p, tunable := range i.Tunables {
+				i.Tunables[p] = dereferenceCopy(tunable, references)
+			}
+			e.Modules[m] = i
 		}
 		c.Entries[k] = e
 	}
