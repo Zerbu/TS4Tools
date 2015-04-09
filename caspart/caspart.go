@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	version = 28
+	version = 30
 )
 
 const (
@@ -121,6 +121,17 @@ func Read(b []byte) (*CasPart, error) {
 		return nil, err
 	}
 
+	p.AuralMaterialSets = make([]uint32, p.UsedMaterialCount)
+	err = binary.Read(r, binary.LittleEndian, p.AuralMaterialSets)
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Read(r, binary.LittleEndian, &p.Chunk5)
+	if err != nil {
+		return nil, err
+	}
+
 	p.LODs = make([]LOD, p.NumLODs)
 	for i := range p.LODs {
 		lod, err := readLOD(r)
@@ -141,7 +152,7 @@ func Read(b []byte) (*CasPart, error) {
 		return nil, err
 	}
 
-	err = binary.Read(r, binary.LittleEndian, &p.Chunk5)
+	err = binary.Read(r, binary.LittleEndian, &p.Chunk6)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +163,7 @@ func Read(b []byte) (*CasPart, error) {
 		return nil, err
 	}
 
-	err = binary.Read(r, binary.LittleEndian, &p.Chunk6)
+	err = binary.Read(r, binary.LittleEndian, &p.Chunk7)
 	if err != nil {
 		return nil, err
 	}
@@ -274,6 +285,16 @@ func (p *CasPart) Write() ([]byte, error) {
 		return nil, err
 	}
 
+	err = binary.Write(b, binary.LittleEndian, p.AuralMaterialSets)
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Write(b, binary.LittleEndian, p.Chunk5)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, lod := range p.LODs {
 		err = writeLOD(b, lod)
 		if err != nil {
@@ -291,7 +312,7 @@ func (p *CasPart) Write() ([]byte, error) {
 		return nil, err
 	}
 
-	err = binary.Write(b, binary.LittleEndian, p.Chunk5)
+	err = binary.Write(b, binary.LittleEndian, p.Chunk6)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +322,7 @@ func (p *CasPart) Write() ([]byte, error) {
 		return nil, err
 	}
 
-	err = binary.Write(b, binary.LittleEndian, p.Chunk6)
+	err = binary.Write(b, binary.LittleEndian, p.Chunk7)
 	if err != nil {
 		return nil, err
 	}
@@ -353,12 +374,14 @@ type CasPart struct {
 	NumSwatchColors uint8
 	SwatchColors    []uint32
 	Chunk4
+	AuralMaterialSets []uint32
+	Chunk5
 	LODs        []LOD
 	NumSlotKeys uint8
 	SlotKeys    []uint8
-	Chunk5
-	RegionLayerOverrides []Override
 	Chunk6
+	RegionLayerOverrides []Override
+	Chunk7
 	ResourceKeys []ResourceKey
 }
 
@@ -391,16 +414,20 @@ type Chunk3 struct {
 }
 
 type Chunk4 struct {
-	BuffResKey      uint8
-	VariantThumbKey uint8
-	VoiceEffectHash uint64
-	NakedKey        uint8
-	ParentKey       uint8
-	SortLayer       int32
-	NumLODs         uint8
+	BuffResKey        uint8
+	VariantThumbKey   uint8
+	VoiceEffectHash   uint64
+	UsedMaterialCount uint8
 }
 
 type Chunk5 struct {
+	NakedKey  uint8
+	ParentKey uint8
+	SortLayer int32
+	NumLODs   uint8
+}
+
+type Chunk6 struct {
 	DiffuseKey        uint8
 	ShadowKey         uint8
 	CompositionMethod uint8
@@ -408,10 +435,11 @@ type Chunk5 struct {
 	NumOverrides      uint8
 }
 
-type Chunk6 struct {
+type Chunk7 struct {
 	NormalMapKey     uint8
 	SpecularMapKey   uint8
-	SharedUVMapSpace uint32
+	NormalUVBodyType uint32
+	EmissionMapKey   uint8
 	NumResourceKeys  uint8
 }
 
