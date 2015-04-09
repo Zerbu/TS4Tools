@@ -23,9 +23,10 @@ import (
 	"bytes"
 	"compress/zlib"
 	"fmt"
-	"github.com/Fogity/TS4Tools/keys"
 	"io/ioutil"
 	"os"
+
+	"github.com/Fogity/TS4Tools/keys"
 )
 
 const (
@@ -58,6 +59,32 @@ func (r *Resource) SetKey(key keys.Key) {
 
 func (r *Resource) ToBytes() ([]byte, error) {
 	switch r.entry.Extended.CompressionType {
+	case compUncompressed:
+		_, err := r.p.file.Seek(int64(r.entry.Fixed.Position), os.SEEK_SET)
+		if err != nil {
+			return nil, err
+		}
+		uncompressed := make([]byte, r.entry.Fixed.CompressedSize & ^uint32(extendedCompressionType))
+		_, err = r.p.file.Read(uncompressed)
+		if err != nil {
+			return nil, err
+		}
+		return uncompressed, nil
+	case compInternal:
+		_, err := r.p.file.Seek(int64(r.entry.Fixed.Position), os.SEEK_SET)
+		if err != nil {
+			return nil, err
+		}
+		compressed := make([]byte, r.entry.Fixed.CompressedSize & ^uint32(extendedCompressionType))
+		_, err = r.p.file.Read(compressed)
+		if err != nil {
+			return nil, err
+		}
+		decompressed, err := internalDecompress(compressed)
+		if err != nil {
+			return nil, err
+		}
+		return decompressed, nil
 	case compDeleted:
 		return nil, nil
 	case compZLIB:
