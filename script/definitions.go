@@ -31,6 +31,7 @@ import (
 	"github.com/Fogity/TS4Tools/hash"
 	"github.com/Fogity/TS4Tools/keys"
 	"github.com/Fogity/TS4Tools/simdata"
+	"github.com/Fogity/TS4Tools/stbl"
 )
 
 var (
@@ -591,6 +592,17 @@ func execParse(c *context.Context, args []interface{}) error {
 			return err
 		}
 		data, err := combined.Read(bytes)
+		if err != nil {
+			return err
+		}
+		c.Set(name, data)
+		return nil
+	case "stbl":
+		bytes, err := res.ToBytes()
+		if err != nil {
+			return err
+		}
+		data, err := stbl.Read(bytes)
 		if err != nil {
 			return err
 		}
