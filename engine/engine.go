@@ -17,17 +17,28 @@ You should have received a copy of the GNU General Public License
 along with TS4Tools.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package keys
+package main
 
-type Key struct {
-	Type, Group uint32
-	Instance    uint64
-}
+import (
+	"fmt"
+	"os"
 
-type Keyer interface {
-	Key() Key
-}
+	"github.com/Fogity/TS4Libs/script"
+)
 
-func CombineKey(t, g, ie, i uint32) Key {
-	return Key{t, g, (uint64(ie) << 32) + uint64(i)}
+func main() {
+	if len(os.Args) != 2 {
+		fmt.Printf("Expecting 1 argument, found %v\n", len(os.Args)-1)
+		return
+	}
+
+	fmt.Printf("Running script...\n")
+
+	err := script.RunFile(os.Args[1])
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Script run sucessfully.\n")
 }
