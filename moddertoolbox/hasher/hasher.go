@@ -17,13 +17,10 @@ You should have received a copy of the GNU General Public License
 along with TS4Tools.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package main
-
-//go:generate genqrc qml
+package hasher
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
@@ -32,43 +29,48 @@ import (
 )
 
 const (
-	formatHex = "hex"
-	formatDec = "dec"
+	numberFormatHex = "hex"
+	numberFormatDec = "dec"
 
 	formatHex32 = "0x%08X"
 	formatHex64 = "0x%016X"
 	formatDec32 = "%v"
 	formatDec64 = "%v"
 
-	invalidInput = "Invalid input"
-	largeInput   = "Number too large"
+	resultInputInvalid  = "Invalid input"
+	resultInputTooLarge = "Number too large"
 )
 
 var (
-	matchHex = regexp.MustCompile("^0x[a-zA-Z0-9]+$")
+	matchHex = regexp.MustCompile("^0x[0-9a-fA-F]+$")
 	matchDec = regexp.MustCompile("^[0-9]+$")
 )
 
-type Hash struct {
+type HashData struct {
 	Fnv24, Fnv32, Fnv32High, Fnv64, Fnv64High string
 	Text, Format                              string
 }
 
-func (h *Hash) ChangeText(text string) {
+type ConvertData struct {
+	Result     string
+	AlignRight bool
+}
+
+func (h *HashData) ChangeText(text string) {
 	h.Text = text
 	h.Calculate()
 }
 
-func (h *Hash) ChangeFormat(format string) {
+func (h *HashData) ChangeFormat(format string) {
 	h.Format = format
 	h.Calculate()
 }
 
-func (h *Hash) Calculate() {
+func (h *HashData) Calculate() {
 	var f32, f64 string
 
 	switch h.Format {
-	case formatHex:
+	case numberFormatHex:
 		f32 = formatHex32
 		f64 = formatHex64
 	default:
@@ -97,40 +99,28 @@ func (h *Hash) Calculate() {
 	qml.Changed(h, &h.Fnv64High)
 }
 
-type Convert struct {
-	Result     string
-	AlignRight bool
-}
-
-func (c *Convert) ChangeText(text string) {
+func (c *ConvertData) ChangeText(text string) {
 	str := strings.TrimSpace(text)
 
 	if str == "" {
-		c.Result = ""
-		qml.Changed(c, &c.Result)
+		c.Update("", false)
 		return
 	}
 
 	if matchHex.MatchString(str) {
 		var ui32 uint32
 		if _, err := fmt.Sscan(str, &ui32); err == nil {
-			c.Result = fmt.Sprintf(formatDec32, ui32)
-			c.AlignRight = true
-			qml.Changed(c, &c.Result)
+			c.Update(fmt.Sprintf(formatDec32, ui32), true)
 			return
 		}
 
 		var ui64 uint64
 		if _, err := fmt.Sscan(str, &ui64); err == nil {
-			c.Result = fmt.Sprintf(formatDec64, ui64)
-			c.AlignRight = true
-			qml.Changed(c, &c.Result)
+			c.Update(fmt.Sprintf(formatDec64, ui64), true)
 			return
 		}
 
-		c.Result = largeInput
-		c.AlignRight = false
-		qml.Changed(c, &c.Result)
+		c.Update(resultInputTooLarge, false)
 		return
 	}
 
@@ -142,59 +132,47 @@ func (c *Convert) ChangeText(text string) {
 
 		var ui32 uint32
 		if _, err := fmt.Sscan(str, &ui32); err == nil {
-			c.Result = fmt.Sprintf(formatHex32, ui32)
-			c.AlignRight = true
-			qml.Changed(c, &c.Result)
+			c.Update(fmt.Sprintf(formatHex32, ui32), true)
 			return
 		}
 
 		var ui64 uint64
 		if _, err := fmt.Sscan(str, &ui64); err == nil {
-			c.Result = fmt.Sprintf(formatHex64, ui64)
-			c.AlignRight = true
-			qml.Changed(c, &c.Result)
+			c.Update(fmt.Sprintf(formatHex64, ui64), true)
 			return
 		}
 
-		c.Result = largeInput
-		c.AlignRight = false
-		qml.Changed(c, &c.Result)
+		c.Update(resultInputTooLarge, false)
 		return
 	}
 
-	c.Result = invalidInput
-	c.AlignRight = false
+	c.Update(resultInputInvalid, false)
+}
+
+func (c *ConvertData) Update(result string, alignRight bool) {
+	c.Result = result
+	c.AlignRight = alignRight
 	qml.Changed(c, &c.Result)
 }
 
-func main() {
-	if err := qml.Run(run); err != nil {
-		fmt.Printf("error: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-func run() error {
+func CreateWindow() error {
 	engine := qml.NewEngine()
 
-	engine.On("quit", func() { os.Exit(0) })
-
-	toolbox, err := engine.LoadFile("qrc:///qml/Toolbox.qml")
+	hasher, err := engine.LoadFile("qrc:///qml/hasher/Window.qml")
 	if err != nil {
 		return err
 	}
 
 	context := engine.Context()
 
-	h := new(Hash)
-	h.ChangeFormat(formatHex)
+	h := new(HashData)
+	h.ChangeFormat(numberFormatHex)
 	context.SetVar("hash", h)
 
-	context.SetVar("convert", &Convert{})
+	context.SetVar("convert", new(ConvertData))
 
-	window := toolbox.CreateWindow(nil)
+	window := hasher.CreateWindow(nil)
 	window.Show()
-	window.Wait()
 
 	return nil
 }
