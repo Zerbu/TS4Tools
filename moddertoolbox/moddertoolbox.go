@@ -25,16 +25,19 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Fogity/TS4Tools/moddertoolbox/converter"
 	"github.com/Fogity/TS4Tools/moddertoolbox/hasher"
 	"gopkg.in/qml.v1"
 )
 
-type Dummy struct{}
+type App struct{}
 
-func (d *Dummy) Create(tool string) {
+func (*App) Create(tool string) {
 	switch tool {
 	case "hasher":
 		hasher.CreateWindow()
+	case "converter":
+		converter.CreateWindow()
 	}
 }
 
@@ -56,7 +59,7 @@ func run() error {
 	}
 
 	context := engine.Context()
-	context.SetVar("dummy", new(Dummy))
+	context.SetVar("app", new(App))
 
 	window := toolbox.CreateWindow(nil)
 	window.Show()

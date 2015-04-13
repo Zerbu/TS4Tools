@@ -9,9 +9,12 @@ ApplicationWindow {
 	Flow {
 		Button {
 			text: "Hasher"
-			onClicked: {
-				dummy.create("hasher")
-			}
+			onClicked: { app.create("hasher") }
+		}
+
+		Button {
+			text: "Converter"
+			onClicked: { app.create("converter") }
 		}
 	}
 }
