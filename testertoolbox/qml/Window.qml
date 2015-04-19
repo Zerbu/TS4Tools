@@ -11,5 +11,10 @@ ApplicationWindow {
 			text: "Thumbnail Extractor"
 			onClicked: { app.create("thumbextractor") }
 		}
+		
+		Button {
+			text: "Tuning Extractor"
+			onClicked: { app.create("tuningextractor") }
+		}
 	}
 }

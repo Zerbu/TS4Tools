@@ -26,6 +26,7 @@ import (
 	"os"
 
 	"github.com/Fogity/TS4Tools/testertoolbox/thumbextractor"
+	"github.com/Fogity/TS4Tools/testertoolbox/tuningextractor"
 	"gopkg.in/qml.v1"
 )
 
@@ -35,6 +36,8 @@ func (*App) Create(tool string) {
 	switch tool {
 	case "thumbextractor":
 		thumbextractor.CreateWindow()
+	case "tuningextractor":
+		tuningextractor.CreateWindow()
 	}
 }
 
